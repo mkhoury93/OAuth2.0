@@ -52,6 +52,7 @@ def fbconnect():
         This method handles the OAuth client of verifying a facebook
         User's token of authorization.
     '''
+    print "In fbconnect!"
     if request.args.get('state') != login_session['state']:
         response = make_response(json.dumps('Invalid state parameter.'), 401)
         response.headers['Content-Type'] = 'application/json'
@@ -120,6 +121,15 @@ def fbconnect():
     flash("Now logged in as %s" % login_session['username'])
     return output
 
+@app.route('/fbdisconnect')
+def fbdisconnect():
+    facebook_id = login_session['facebook_id']
+    # The access token must me included to successfully logout
+    access_token = login_session['access_token']
+    url = 'https://graph.facebook.com/%s/permissions?access_token=%s' % (facebook_id,access_token)
+    h = httplib2.Http()
+    result = h.request(url, 'DELETE')[1]
+    return "you have been logged out"
 
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
@@ -289,8 +299,29 @@ def gdisconnect():
         return response
 
 
-# JSON APIs to view Restaurant Information
+@app.route('/disconnect')
+def disconnect():
+    if 'provider' in login_session:
+        if login_session['provider'] == 'google':
+            gdisconnect()
+            del login_session['gplus_id']
+            del login_session['access_token']
+        if login_session['provider'] == 'facebook':
+            fbdisconnect()
+            del login_session['facebook_id']
+        del login_session['username']
+        del login_session['email']
+        del login_session['picture']
+        del login_session['user_id']
+        del login_session['provider']
+        flash("You have successfully been logged out.")
+        return redirect(url_for('showRestaurants'))
+    else:
+        flash("You were not logged in")
+        return redirect(url_for('showRestaurants'))
 
+
+# JSON APIs to view Restaurant Information
 @app.route('/restaurant/<int:restaurant_id>/menu/JSON')
 def restaurantMenuJSON(restaurant_id):
     """This method serializes the MenuItems into a JSON file"""
@@ -408,7 +439,6 @@ def showMenu(restaurant_id):
                                restaurant=restaurant, creator=creator)
 
 
-
 # Create a new menu item
 
 @app.route('/restaurant/<int:restaurant_id>/menu/new/', methods=['GET',
@@ -486,7 +516,7 @@ def deleteMenuItem(restaurant_id, menu_id):
     else:
         return render_template('deleteMenuItem.html', item=itemToDelete)
 
- 
+
 def createUser(login_session):
     newUser = User(name=login_session['username'],
                    email=login_session['email'],
