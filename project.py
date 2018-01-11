@@ -26,13 +26,16 @@ CLIENT_ID = json.loads(open('client_secrets.json', 'r').read())['web'
 
 engine = create_engine('sqlite:///restaurantmenuwithusers.db')
 Base.metadata.bind = engine
-
 DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
 
 @app.route('/login')
 def showLogin():
+    """Here we create string of 32 characters and digits and store
+       it in the state of login_session, which is imported from flask.
+       Afterwards, we store this in a variable called state, to which
+       we pass it along on the template 'login.html' as STATE."""
     state = ''.join(random.choice(string.ascii_uppercase
                     + string.digits) for x in xrange(32))
     login_session['state'] = state
@@ -44,6 +47,11 @@ def showLogin():
 
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
+    """This method handles the OAuth client of verifying a user's
+        token of authroization. If it's a successful verification,
+        then google plus' API pulls out the user's image, e-mail,
+        and full-name. If the user is new, it creates a new user
+        in the database!"""
 
     # Validate state token
 
@@ -58,9 +66,7 @@ def gconnect():
     code = request.data
 
     try:
-
         # Upgrade the authorization code into a credentials object
-
         oauth_flow = flow_from_clientsecrets('client_secrets.json',
                 scope='')
         oauth_flow.redirect_uri = 'postmessage'
@@ -157,18 +163,19 @@ def gconnect():
     flash('you are now logged in as %s' % login_session['username'])
     print 'done!'
     print 'logged in as %s ' % login_session['username']
-    print "The user's credentials are: %s" % credentials.access_token
     return output
 
 
 @app.route('/gdisconnect')
 def gdisconnect():
-
+    """This method handles disconnecting a user from the web application
+        if the result of parsing his token (on the oauth2 client) is a
+        200 HTTP respone, then it deletes the user's access token, google
+        plus id, username, email and picture from the login_session"""
     # Only disconnect a connected user
-    # if no credentials found, return message saying that user not connected
+    # if no access token found, return message saying that user not connected
 
     access_token = login_session.get('access_token')
-    print 'the credentials are: %s ' % access_token
     if access_token is None:
         response = make_response(json.dumps('Current user not connected'
                                  ), 401)
@@ -208,6 +215,7 @@ def gdisconnect():
 
 @app.route('/restaurant/<int:restaurant_id>/menu/JSON')
 def restaurantMenuJSON(restaurant_id):
+    """This method serializes the MenuItems into a JSON file"""
     restaurant = \
         session.query(Restaurant).filter_by(id=restaurant_id).one()
     items = \
@@ -217,12 +225,16 @@ def restaurantMenuJSON(restaurant_id):
 
 @app.route('/restaurant/<int:restaurant_id>/menu/<int:menu_id>/JSON')
 def menuItemJSON(restaurant_id, menu_id):
+    """This method serializes one menu item (via it's id) into a
+        JSON file."""
     Menu_Item = session.query(MenuItem).filter_by(id=menu_id).one()
     return jsonify(Menu_Item=Menu_Item.serialize)
 
 
 @app.route('/restaurant/JSON')
 def restaurantsJSON():
+    """This method serializes all the restaurants in the database
+        into a JSON file"""
     restaurants = session.query(Restaurant).all()
     return jsonify(restaurants=[r.serialize for r in restaurants])
 
@@ -396,7 +408,7 @@ def deleteMenuItem(restaurant_id, menu_id):
     else:
         return render_template('deleteMenuItem.html', item=itemToDelete)
 
-
+ 
 def createUser(login_session):
     newUser = User(name=login_session['username'],
                    email=login_session['email'],
@@ -406,7 +418,6 @@ def createUser(login_session):
     user = session.query(User).filter_by(email=login_session['email'
             ]).one()
     return user.id
-
 
 def getUserInfo(user_id):
     user = session.query(User).filter_by(id=user_id).one()
